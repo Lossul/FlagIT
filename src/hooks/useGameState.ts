@@ -78,7 +78,9 @@ export function useGameState() {
           && new Set(boardOrder).size === allMembers.length;
 
         if (boardOrderIsValid) {
-          const parsedHints = Array.isArray(parsed.revealedHintThemes) ? parsed.revealedHintThemes.filter((t) => typeof t === 'string') : [];
+          const parsedHints: string[] = Array.isArray(parsed.revealedHintThemes)
+            ? (parsed.revealedHintThemes as unknown[]).filter((t: unknown): t is string => typeof t === 'string')
+            : [];
           const validHintThemes = parsedHints.filter((t) => puzzle.groups.some(g => g.theme === t));
           const savedPressureMode = parsed.timePressureMode === true;
           const savedPressureStart = typeof parsed.pressureStart === 'number' ? parsed.pressureStart : null;
