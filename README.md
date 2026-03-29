@@ -1,6 +1,6 @@
-## Daily Flag Puzzle
+## FlagIT
 
-Daily Flag Puzzle is a daily geography game inspired by “Connections.” Each day you get a set of 16 flags and must group them into 4 hidden categories. Challenge mode obscures the flags and time pressure gradually tightens the signal, so there’s strategy beyond simple recognition.
+FlagIT Puzzle is a daily geography game inspired by “Connections.” Each day you get a set of 16 flags and must group them into 4 hidden categories. Challenge mode obscures the flags and time pressure gradually tightens the signal, so there’s strategy beyond simple recognition.
 
 ### Features
 - Daily rotating puzzle
