@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Daily Flag Puzzle
+
+Daily Flag Puzzle is a daily geography game inspired by “Connections.” Each day you get a set of 16 flags and must group them into 4 hidden categories. Challenge mode obscures the flags and time pressure gradually tightens the signal, so there’s strategy beyond simple recognition.
+
+### Features
+- Daily rotating puzzle
+- Challenge mode (progressive reveal based on mistakes)
+- Time pressure mode (signal degrades over time)
+- Hint system (reveal a group theme for a mistake)
+- Stats and streaks with shareable results
 
 ## Getting Started
 
-First, run the development server:
+First, install dependencies and run the dev server:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open `http://localhost:3000` in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Build and Run Production
+```bash
+npm run build
+npm start
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project Structure
+- `src/app` — Next.js app entry and global styles
+- `src/components` — UI components (board, cards, modals)
+- `src/hooks` — game state and persistence
+- `src/data` — puzzle data and country list
 
-## Learn More
+## Contributing
+Contributions are welcome. If you’d like to help:
+1. Fork the repo and create a feature branch.
+2. Keep changes focused and easy to review.
+3. Open a PR with a clear summary and screenshots if UI changes are involved.
 
-To learn more about Next.js, take a look at the following resources:
+If you’re planning something bigger (new modes, data tooling, or major UX changes), open an issue first so we can align on direction.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+MIT
