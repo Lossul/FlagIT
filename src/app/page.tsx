@@ -27,8 +27,8 @@ export default function Home() {
           title="Border Builder"
           description="Start from a country and build the longest chain of bordering neighbors."
           href="/border-builder"
-          tag="New mode"
-          status="beta"
+          tag="Daily challenge"
+          status="live"
         />
         <GameCard
           title="Clue-to-Country"
@@ -48,8 +48,8 @@ export default function Home() {
           title="Map Click Challenge"
           description="Click the prompted country on a blank map. Precision matters."
           href="/map-click"
-          tag="Coming soon"
-          status="soon"
+          tag="Daily challenge"
+          status="live"
         />
       </section>
     </main>

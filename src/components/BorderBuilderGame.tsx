@@ -1,21 +1,39 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { getDailyBorderBuilder } from '@/data/borderBuilder';
+import { getDayIndex, getLocalDateKey } from '@/lib/daily';
+import { borderBuilderRegions, getDailyBorderBuilder } from '@/data/borderBuilder';
 import { countries } from '@/data/countries';
 
 const TIMER_SECONDS = 60;
 
 export function BorderBuilderGame() {
+  const today = new Date();
   const daily = getDailyBorderBuilder();
-  const [chain, setChain] = useState<string[]>([daily.startCountry]);
+  const practicePool = borderBuilderRegions.flatMap((region) =>
+    region.countries
+      .filter((code) => (region.neighbors[code] || []).length > 0)
+      .map((code) => ({ region, startCountry: code }))
+  );
+  const baseIndex = getDayIndex(today, practicePool.length);
+  const [mode, setMode] = useState<'daily' | 'practice'>('daily');
+  const [practiceOffset, setPracticeOffset] = useState(1);
+  const practiceIndex = practicePool.length > 0
+    ? (baseIndex + practiceOffset) % practicePool.length
+    : 0;
+  const practiceEntry = practicePool[practiceIndex];
+  const activeRegion = mode === 'daily' ? daily.region : practiceEntry?.region ?? daily.region;
+  const activeStart = mode === 'daily' ? daily.startCountry : practiceEntry?.startCountry ?? daily.startCountry;
+  const dateLabel = getLocalDateKey(today);
+
+  const [chain, setChain] = useState<string[]>([activeStart]);
   const [noRepeats, setNoRepeats] = useState(true);
   const [timerMode, setTimerMode] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(TIMER_SECONDS);
   const [status, setStatus] = useState<'playing' | 'ended'>('playing');
 
-  const region = daily.region;
-  const current = chain[chain.length - 1];
+  const region = activeRegion;
+  const current = chain[chain.length - 1] || activeStart;
   const used = new Set(chain);
 
   const neighbors = useMemo(() => {
@@ -48,13 +66,19 @@ export function BorderBuilderGame() {
     }
   }, [neighbors.length]);
 
+  useEffect(() => {
+    setChain([activeStart]);
+    setSecondsLeft(TIMER_SECONDS);
+    setStatus('playing');
+  }, [activeStart, mode]);
+
   const handlePick = (code: string) => {
     if (status !== 'playing') return;
     setChain([...chain, code]);
   };
 
   const handleReset = () => {
-    setChain([daily.startCountry]);
+    setChain([activeStart]);
     setSecondsLeft(TIMER_SECONDS);
     setStatus('playing');
   };
@@ -65,10 +89,10 @@ export function BorderBuilderGame() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: '520px', gap: '1rem', flexWrap: 'wrap' }}>
         <div style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>
-          Region: {region.name}
+          {mode === 'daily' ? 'Daily' : 'Practice'} • {dateLabel}
         </div>
         <div style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>
-          Daily Start: {currentCountry?.name || current}
+          Region: {region.name} • Start: {currentCountry?.name || current}
         </div>
       </div>
 
@@ -86,6 +110,42 @@ export function BorderBuilderGame() {
             <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{currentCountry?.name || current}</div>
             <div style={{ opacity: 0.6, fontSize: '0.9rem' }}>Chain length: {chain.length}</div>
           </div>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+          <button
+            onClick={() => setMode((prev) => (prev === 'daily' ? 'practice' : 'daily'))}
+            style={{
+              padding: '0.4rem 0.9rem',
+              borderRadius: '999px',
+              border: '1px solid var(--border)',
+              background: mode === 'practice' ? 'var(--foreground)' : 'transparent',
+              color: mode === 'practice' ? 'var(--background)' : 'var(--foreground)',
+              fontWeight: 700,
+              fontSize: '0.7rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+            }}
+          >
+            {mode === 'practice' ? 'Practice On' : 'Practice Off'}
+          </button>
+          {mode === 'practice' && (
+            <button
+              onClick={() => setPracticeOffset((prev) => (prev + 1) % Math.max(practicePool.length, 1))}
+              style={{
+                padding: '0.4rem 0.9rem',
+                borderRadius: '999px',
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--foreground)',
+                fontWeight: 700,
+                fontSize: '0.7rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+              }}
+            >
+              Next Start
+            </button>
+          )}
         </div>
       </div>
 
