@@ -3,11 +3,12 @@
 FlagIT Puzzle is a daily geography game inspired by “Connections.” Each day you get a set of 16 flags and must group them into 4 hidden categories. Challenge mode obscures the flags and time pressure gradually tightens the signal, so there’s strategy beyond simple recognition.
 
 ### Features
-- Daily rotating puzzle
-- Challenge mode (progressive reveal based on mistakes)
-- Time pressure mode (signal degrades over time)
-- Hint system (reveal a group theme for a mistake)
-- Stats and streaks with shareable results
+- Multi-game daily arcade
+- Connections (flag groupings) with challenge + time pressure modes
+- Border Builder (neighbor chain) with timer and no-repeats mode
+- Clue-to-Country (progressive hints with scoring)
+- Odd One Out (logic-based elimination puzzles)
+- Hint system, stats, streaks, and shareable results
 
 ## Getting Started
 
