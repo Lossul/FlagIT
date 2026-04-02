@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Map Click Challenge</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101214;
+        --panel: #17191c;
+        --border: #2b2f33;
+        --text: #f4f4f4;
+        --muted: #a0a0a0;
+        --accent: #f8d34f;
+        --good: #22c55e;
+        --bad: #ef4444;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      .container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem 3rem;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.5rem;
+      }
+
+      .title {
+        font-size: 2rem;
+        margin: 0;
+      }
+
+      .pill {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.35rem 0.9rem;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.25rem;
+      }
+
+      .target {
+        font-size: 1.65rem;
+        font-weight: 700;
+        margin-top: 0.5rem;
+      }
+
+      .feedback {
+        margin-top: 0.75rem;
+        font-size: 0.95rem;
+        color: var(--muted);
+      }
+
+      .map-wrap {
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        overflow: hidden;
+        background: linear-gradient(180deg, #14171b 0%, #0f1114 100%);
+      }
+
+      svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .country {
+        fill: #1f2328;
+        stroke: #31353a;
+        stroke-width: 0.6;
+        transition: fill 0.15s ease, stroke 0.15s ease;
+        cursor: pointer;
+      }
+
+      .country:hover {
+        fill: #2a2f35;
+        stroke: #f8d34f;
+      }
+
+      .country.correct {
+        fill: #14532d;
+        stroke: #22c55e;
+      }
+
+      .country.wrong {
+        fill: #4c1d1d;
+        stroke: #ef4444;
+      }
+
+      .controls {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-top: 0.75rem;
+      }
+
+      button {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.45rem 1rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.7rem;
+        cursor: pointer;
+      }
+
+      button:hover {
+        border-color: var(--accent);
+      }
+
+      .status {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1 class="title">Map Click Challenge</h1>
+        <div class="pill" id="regionPill">Region: —</div>
+      </div>
+
+      <div class="panel">
+        <div class="status" id="dateLabel">Daily Target</div>
+        <div class="target" id="targetLabel">Loading…</div>
+        <div class="feedback" id="feedback">Click the correct country on the map.</div>
+        <div class="controls">
+          <button id="newTarget">Next Target</button>
+          <div class="status" id="streakLabel">Streak: 0</div>
+        </div>
+      </div>
+
+      <div class="map-wrap">
+        <svg id="map" viewBox="0 0 1000 520" role="img" aria-label="World Map"></svg>
+      </div>
+    </div>
+
+    <script>
+      const regionSets = {
+        "North America": ["CA", "US", "MX", "CU"],
+        "South America": ["BR", "AR", "CL", "PE"],
+        "Europe": ["GB", "FR", "DE", "IT"],
+        "Africa": ["EG", "NG", "KE", "ZA"],
+        "Asia-Pacific": ["CN", "JP", "IN", "AU"],
+      };
+
+      const regionOrder = Object.keys(regionSets);
+
+      function getDayIndex(date, modulo) {
+        if (modulo <= 0) return 0;
+        const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const epoch = new Date(2024, 0, 1);
+        const daysSince = Math.floor((localDate - epoch) / (1000 * 60 * 60 * 24));
+        return ((daysSince % modulo) + modulo) % modulo;
+      }
+
+      function project([lon, lat], width, height) {
+        const x = ((lon + 180) / 360) * width;
+        const y = ((90 - lat) / 180) * height;
+        return [x, y];
+      }
+
+      function ringToPath(ring, width, height) {
+        return ring
+          .map((point, index) => {
+            const [x, y] = project(point, width, height);
+            return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+          })
+          .join(" ") + " Z";
+      }
+
+      function polygonToPath(coords, width, height) {
+        return coords.map((ring) => ringToPath(ring, width, height)).join(" ");
+      }
+
+      function featureToPath(feature, width, height) {
+        const { type, coordinates } = feature.geometry;
+        if (type === "Polygon") return polygonToPath(coordinates, width, height);
+        if (type === "MultiPolygon") {
+          return coordinates.map((poly) => polygonToPath(poly, width, height)).join(" ");
+        }
+        return "";
+      }
+
+      const svg = document.getElementById("map");
+      const targetLabel = document.getElementById("targetLabel");
+      const feedback = document.getElementById("feedback");
+      const regionPill = document.getElementById("regionPill");
+      const streakLabel = document.getElementById("streakLabel");
+      const dateLabel = document.getElementById("dateLabel");
+      const newTargetButton = document.getElementById("newTarget");
+
+      let streak = 0;
+      let targetCode = "";
+      let targetName = "";
+      let featureIndex = 0;
+      let featuresByCode = {};
+      let currentRegion = regionOrder[0];
+
+      function setTarget() {
+        const codes = regionSets[currentRegion];
+        targetCode = codes[featureIndex % codes.length];
+        const feature = featuresByCode[targetCode];
+        targetName = feature ? feature.properties.name : targetCode;
+        targetLabel.textContent = `Click ${targetName}`;
+        feedback.textContent = "Click the correct country on the map.";
+        clearHighlights();
+      }
+
+      function clearHighlights() {
+        svg.querySelectorAll(".country").forEach((path) => {
+          path.classList.remove("correct", "wrong");
+        });
+      }
+
+      newTargetButton.addEventListener("click", () => {
+        featureIndex += 1;
+        setTarget();
+      });
+
+      function onCountryClick(event) {
+        const path = event.currentTarget;
+        const clickedCode = path.dataset.code;
+        const clickedName = path.dataset.name;
+        console.log(clickedName);
+
+        if (clickedCode === targetCode) {
+          path.classList.add("correct");
+          feedback.textContent = `Correct! ${clickedName} was the target.`;
+          streak += 1;
+          streakLabel.textContent = `Streak: ${streak}`;
+          featureIndex += 1;
+          setTarget();
+        } else {
+          path.classList.add("wrong");
+          feedback.textContent = `Incorrect — that was ${clickedName}.`;
+          streak = 0;
+          streakLabel.textContent = `Streak: ${streak}`;
+        }
+      }
+
+      function formatDate(date) {
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, "0");
+        const dd = String(date.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      }
+
+      async function initMap() {
+        const response = await fetch("/world.geojson");
+        const geojson = await response.json();
+        const width = 1000;
+        const height = 520;
+
+        featuresByCode = {};
+        geojson.features.forEach((feature) => {
+          const code = feature.properties["ISO3166-1-Alpha-2"];
+          featuresByCode[code] = feature;
+
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("d", featureToPath(feature, width, height));
+          path.setAttribute("class", "country");
+          path.setAttribute("data-name", feature.properties.name);
+          path.setAttribute("data-code", code);
+          path.addEventListener("click", onCountryClick);
+          svg.appendChild(path);
+        });
+
+        const now = new Date();
+        const regionIndex = getDayIndex(now, regionOrder.length);
+        currentRegion = regionOrder[regionIndex];
+        featureIndex = getDayIndex(now, regionSets[currentRegion].length);
+
+        regionPill.textContent = `Region: ${currentRegion}`;
+        dateLabel.textContent = `Daily Target • ${formatDate(now)}`;
+        setTarget();
+      }
+
+      initMap();
+    </script>
+  </body>
+</html>

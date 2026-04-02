@@ -15,8 +15,12 @@ export default function MapClickPage() {
         </p>
       </header>
 
-      <div style={{ padding: '2rem', borderRadius: '16px', border: '1px dashed var(--border)', textAlign: 'center' }}>
-        Map mode is coming soon. I can wire up a lightweight SVG map next if you want.
+      <div style={{ border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+        <iframe
+          src="/map-click.html"
+          title="Map Click Challenge"
+          style={{ width: '100%', height: '780px', border: 'none' }}
+        />
       </div>
     </main>
   );
