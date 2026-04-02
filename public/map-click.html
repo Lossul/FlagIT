@@ -142,6 +142,32 @@
         font-size: 0.8rem;
         color: var(--muted);
       }
+
+      .status.streak.good {
+        color: var(--good);
+      }
+
+      .status.streak.bad {
+        color: var(--bad);
+      }
+
+      select {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.45rem 1rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.7rem;
+      }
+
+      .map-hint {
+        margin-top: 0.6rem;
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
     </style>
   </head>
   <body>
@@ -157,8 +183,16 @@
         <div class="feedback" id="feedback">Click the correct country on the map.</div>
         <div class="controls">
           <button id="newTarget">Next Target</button>
-          <div class="status" id="streakLabel">Streak: 0</div>
+          <select id="regionMode">
+            <option value="region">Region</option>
+            <option value="sub-region">Sub-region</option>
+          </select>
+          <button id="zoomIn">Zoom +</button>
+          <button id="zoomOut">Zoom -</button>
+          <button id="zoomReset">Reset</button>
+          <div class="status streak" id="streakLabel">Streak: 0</div>
         </div>
+        <div class="map-hint">Scroll to zoom, Shift + drag to pan.</div>
       </div>
 
       <div class="map-wrap">
@@ -167,15 +201,8 @@
     </div>
 
     <script>
-      const regionSets = {
-        "North America": ["CA", "US", "MX", "CU"],
-        "South America": ["BR", "AR", "CL", "PE"],
-        "Europe": ["GB", "FR", "DE", "IT"],
-        "Africa": ["EG", "NG", "KE", "ZA"],
-        "Asia-Pacific": ["CN", "JP", "IN", "AU"],
-      };
-
-      const regionOrder = Object.keys(regionSets);
+      let regionSets = {};
+      let regionOrder = [];
 
       function getDayIndex(date, modulo) {
         if (modulo <= 0) return 0;
@@ -220,16 +247,31 @@
       const streakLabel = document.getElementById("streakLabel");
       const dateLabel = document.getElementById("dateLabel");
       const newTargetButton = document.getElementById("newTarget");
+      const zoomInButton = document.getElementById("zoomIn");
+      const zoomOutButton = document.getElementById("zoomOut");
+      const zoomResetButton = document.getElementById("zoomReset");
+      const regionModeSelect = document.getElementById("regionMode");
 
       let streak = 0;
       let targetCode = "";
       let targetName = "";
       let featureIndex = 0;
       let featuresByCode = {};
-      let currentRegion = regionOrder[0];
+      let currentRegion = "";
+      let regionMode = "region";
+      let regionByCode = {};
+      let subRegionByCode = {};
+      let mapGroup = null;
+      let zoom = 1;
+      let panX = 0;
+      let panY = 0;
+      let isPanning = false;
+      let panStartX = 0;
+      let panStartY = 0;
 
       function setTarget() {
-        const codes = regionSets[currentRegion];
+        const codes = regionSets[currentRegion] || Object.keys(featuresByCode);
+        if (!codes || codes.length === 0) return;
         targetCode = codes[featureIndex % codes.length];
         const feature = featuresByCode[targetCode];
         targetName = feature ? feature.properties.name : targetCode;
@@ -260,6 +302,8 @@
           feedback.textContent = `Correct! ${clickedName} was the target.`;
           streak += 1;
           streakLabel.textContent = `Streak: ${streak}`;
+          streakLabel.classList.remove("bad");
+          streakLabel.classList.add("good");
           featureIndex += 1;
           setTarget();
         } else {
@@ -267,6 +311,8 @@
           feedback.textContent = `Incorrect — that was ${clickedName}.`;
           streak = 0;
           streakLabel.textContent = `Streak: ${streak}`;
+          streakLabel.classList.remove("good");
+          streakLabel.classList.add("bad");
         }
       }
 
@@ -277,13 +323,56 @@
         return `${yyyy}-${mm}-${dd}`;
       }
 
+      function buildRegionSets() {
+        const source = regionMode === "sub-region" ? subRegionByCode : regionByCode;
+        regionSets = {};
+        Object.keys(featuresByCode).forEach((code) => {
+          const region = source[code];
+          if (!region) return;
+          if (!regionSets[region]) regionSets[region] = [];
+          regionSets[region].push(code);
+        });
+
+        regionOrder = Object.keys(regionSets).sort();
+        if (regionOrder.length === 0) {
+          regionOrder = ["World"];
+          regionSets["World"] = Object.keys(featuresByCode);
+        }
+      }
+
+      function clamp(value, min, max) {
+        return Math.min(Math.max(value, min), max);
+      }
+
+      function applyTransform() {
+        if (!mapGroup) return;
+        mapGroup.setAttribute("transform", `translate(${panX} ${panY}) scale(${zoom})`);
+      }
+
       async function initMap() {
-        const response = await fetch("/world.geojson");
-        const geojson = await response.json();
+        const [geoResponse, regionResponse] = await Promise.all([
+          fetch("/world.geojson"),
+          fetch("/country-regions.json"),
+        ]);
+        const geojson = await geoResponse.json();
+        const regionData = await regionResponse.json();
         const width = 1000;
         const height = 520;
 
         featuresByCode = {};
+        regionByCode = {};
+        subRegionByCode = {};
+        regionData.forEach((entry) => {
+          const code = entry["alpha-2"];
+          if (!code) return;
+          regionByCode[code] = entry.region || "";
+          subRegionByCode[code] = entry["sub-region"] || "";
+        });
+
+        mapGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        mapGroup.setAttribute("id", "mapGroup");
+        svg.appendChild(mapGroup);
+
         geojson.features.forEach((feature) => {
           const code = feature.properties["ISO3166-1-Alpha-2"];
           featuresByCode[code] = feature;
@@ -294,18 +383,87 @@
           path.setAttribute("data-name", feature.properties.name);
           path.setAttribute("data-code", code);
           path.addEventListener("click", onCountryClick);
-          svg.appendChild(path);
+          mapGroup.appendChild(path);
         });
 
         const now = new Date();
+        buildRegionSets();
+
         const regionIndex = getDayIndex(now, regionOrder.length);
         currentRegion = regionOrder[regionIndex];
         featureIndex = getDayIndex(now, regionSets[currentRegion].length);
 
-        regionPill.textContent = `Region: ${currentRegion}`;
+        regionPill.textContent = `${regionMode === "sub-region" ? "Sub-region" : "Region"}: ${currentRegion}`;
         dateLabel.textContent = `Daily Target • ${formatDate(now)}`;
         setTarget();
       }
+
+      zoomInButton.addEventListener("click", () => {
+        zoom = clamp(zoom * 1.2, 1, 6);
+        applyTransform();
+      });
+
+      zoomOutButton.addEventListener("click", () => {
+        zoom = clamp(zoom / 1.2, 1, 6);
+        applyTransform();
+      });
+
+      zoomResetButton.addEventListener("click", () => {
+        zoom = 1;
+        panX = 0;
+        panY = 0;
+        applyTransform();
+      });
+
+      svg.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        const delta = event.deltaY < 0 ? 1.1 : 0.9;
+        zoom = clamp(zoom * delta, 1, 6);
+        applyTransform();
+      }, { passive: false });
+
+      svg.addEventListener("pointerdown", (event) => {
+        if (!event.shiftKey) return;
+        isPanning = true;
+        panStartX = event.clientX;
+        panStartY = event.clientY;
+        svg.setPointerCapture(event.pointerId);
+      });
+
+      svg.addEventListener("pointermove", (event) => {
+        if (!isPanning) return;
+        const dx = event.clientX - panStartX;
+        const dy = event.clientY - panStartY;
+        panStartX = event.clientX;
+        panStartY = event.clientY;
+        panX += dx;
+        panY += dy;
+        applyTransform();
+      });
+
+      svg.addEventListener("pointerup", (event) => {
+        if (!isPanning) return;
+        isPanning = false;
+        svg.releasePointerCapture(event.pointerId);
+      });
+
+      svg.addEventListener("pointerleave", () => {
+        isPanning = false;
+      });
+
+      regionModeSelect.addEventListener("change", () => {
+        regionMode = regionModeSelect.value;
+        buildRegionSets();
+        const now = new Date();
+        const regionIndex = getDayIndex(now, regionOrder.length);
+        currentRegion = regionOrder[regionIndex];
+        featureIndex = getDayIndex(now, regionSets[currentRegion].length);
+        regionPill.textContent = `${regionMode === "sub-region" ? "Sub-region" : "Region"}: ${currentRegion}`;
+        streak = 0;
+        streakLabel.textContent = "Streak: 0";
+        streakLabel.classList.remove("good", "bad");
+        setTarget();
+      });
 
       initMap();
     </script>
