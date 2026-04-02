@@ -3,6 +3,8 @@
   --foreground: #1a1a1a; /* Espresso / soft black */
   --surface: #ffffff;
   --border: #e0dcd1;
+  --font-serif: "Iowan Old Style", "Palatino", "Book Antiqua", "Garamond", serif;
+  --font-sans: "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
   
   /* Connections Difficulty Colors */
   --group-1: #f9df6d; /* Yellow */
@@ -36,15 +38,14 @@ body {
   padding: 0;
   background-color: var(--background);
   color: var(--foreground);
-  /* Editorial fonts */
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-sans);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: Georgia, Cambria, "Times New Roman", Times, serif; /* Classic editorial serif */
+  font-family: var(--font-serif);
 }
 
 /* Base button and card styling */
@@ -99,4 +100,3 @@ button {
 .group-2 { background-color: var(--group-2) !important; border-color: var(--group-2) !important; color: #000; }
 .group-3 { background-color: var(--group-3) !important; border-color: var(--group-3) !important; color: #000; }
 .group-4 { background-color: var(--group-4) !important; border-color: var(--group-4) !important; color: #000; }
-
