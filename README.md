@@ -2,7 +2,7 @@
 
 A daily geography game hub with five puzzle modes — from flag grouping to border chains, progressive clues, and map precision challenges. New puzzles drop every day.
 
-**Live at:** [flagit.vercel.app](https://flagit.vercel.app) *(update with your actual URL)*
+**Live at:** [flag-it-cyan.vercel.app](https://flag-it-cyan.vercel.app/)
 
 ---
 
