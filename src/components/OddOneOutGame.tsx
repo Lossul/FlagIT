@@ -2,29 +2,83 @@
 
 import { useEffect, useState } from 'react';
 import { getDayIndex, getLocalDateKey } from '@/lib/daily';
+import { readStorageJSON, writeStorageJSON } from '@/lib/browserStorage';
 import { oddOneOutPuzzles } from '@/data/oddOneOut';
 import { countries } from '@/data/countries';
+
+const PREFS_KEY = 'geo-odd-one-out-prefs';
+const SESSION_PREFIX = 'geo-odd-one-out-session';
+
+interface OddOneOutPrefs {
+  mode: 'daily' | 'practice';
+  practiceOffset: number;
+}
+
+interface OddOneOutSession {
+  picked: string | null;
+  status: 'playing' | 'won';
+  message: string;
+}
 
 export function OddOneOutGame() {
   const today = new Date();
   const dailyIndex = getDayIndex(today, oddOneOutPuzzles.length);
   const [mode, setMode] = useState<'daily' | 'practice'>('daily');
   const [practiceOffset, setPracticeOffset] = useState(1);
+  const [hydrated, setHydrated] = useState(false);
   const puzzleIndex = mode === 'daily'
     ? dailyIndex
     : (dailyIndex + practiceOffset) % oddOneOutPuzzles.length;
   const puzzle = oddOneOutPuzzles[puzzleIndex];
   const dateLabel = getLocalDateKey(today);
+  const sessionKey = `${SESSION_PREFIX}-${dateLabel}-${mode}-${puzzle.id}`;
 
   const [picked, setPicked] = useState<string | null>(null);
   const [status, setStatus] = useState<'playing' | 'won'>('playing');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
+    const prefs = readStorageJSON<Partial<OddOneOutPrefs>>(PREFS_KEY, {});
+    if (prefs.mode === 'daily' || prefs.mode === 'practice') {
+      setMode(prefs.mode);
+    }
+    if (typeof prefs.practiceOffset === 'number' && Number.isFinite(prefs.practiceOffset) && prefs.practiceOffset >= 0) {
+      setPracticeOffset(Math.floor(prefs.practiceOffset));
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    writeStorageJSON<OddOneOutPrefs>(PREFS_KEY, {
+      mode,
+      practiceOffset,
+    });
+  }, [hydrated, mode, practiceOffset]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const saved = readStorageJSON<OddOneOutSession | null>(sessionKey, null);
+    if (saved) {
+      setPicked(typeof saved.picked === 'string' ? saved.picked : null);
+      setStatus(saved.status === 'won' ? 'won' : 'playing');
+      setMessage(typeof saved.message === 'string' ? saved.message : '');
+      return;
+    }
+
     setPicked(null);
     setStatus('playing');
     setMessage('');
-  }, [puzzleIndex, mode]);
+  }, [hydrated, sessionKey]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    writeStorageJSON<OddOneOutSession>(sessionKey, {
+      picked,
+      status,
+      message,
+    });
+  }, [hydrated, sessionKey, picked, status, message]);
 
   const handlePick = (code: string) => {
     if (status !== 'playing') return;

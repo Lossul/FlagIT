@@ -2,10 +2,26 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { getDayIndex, getLocalDateKey } from '@/lib/daily';
+import { readStorageJSON, writeStorageJSON } from '@/lib/browserStorage';
 import { borderBuilderRegions, getDailyBorderBuilder } from '@/data/borderBuilder';
 import { countries } from '@/data/countries';
 
 const TIMER_SECONDS = 60;
+const PREFS_KEY = 'geo-border-builder-prefs';
+const SESSION_PREFIX = 'geo-border-builder-session';
+
+interface BorderBuilderPrefs {
+  mode: 'daily' | 'practice';
+  practiceOffset: number;
+  noRepeats: boolean;
+  timerMode: boolean;
+}
+
+interface BorderBuilderSession {
+  chain: string[];
+  secondsLeft: number;
+  status: 'playing' | 'ended';
+}
 
 export function BorderBuilderGame() {
   const today = new Date();
@@ -18,6 +34,7 @@ export function BorderBuilderGame() {
   const baseIndex = getDayIndex(today, practicePool.length);
   const [mode, setMode] = useState<'daily' | 'practice'>('daily');
   const [practiceOffset, setPracticeOffset] = useState(1);
+  const [hydrated, setHydrated] = useState(false);
   const practiceIndex = practicePool.length > 0
     ? (baseIndex + practiceOffset) % practicePool.length
     : 0;
@@ -31,6 +48,7 @@ export function BorderBuilderGame() {
   const [timerMode, setTimerMode] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(TIMER_SECONDS);
   const [status, setStatus] = useState<'playing' | 'ended'>('playing');
+  const sessionKey = `${SESSION_PREFIX}-${dateLabel}-${mode}-${activeStart}`;
 
   const region = activeRegion;
   const current = chain[chain.length - 1] || activeStart;
@@ -40,6 +58,74 @@ export function BorderBuilderGame() {
     const base = region.neighbors[current] || [];
     return noRepeats ? base.filter((code) => !used.has(code)) : base;
   }, [current, region.neighbors, noRepeats, used]);
+
+  useEffect(() => {
+    const prefs = readStorageJSON<Partial<BorderBuilderPrefs>>(PREFS_KEY, {});
+    if (prefs.mode === 'daily' || prefs.mode === 'practice') {
+      setMode(prefs.mode);
+    }
+    if (typeof prefs.practiceOffset === 'number' && Number.isFinite(prefs.practiceOffset) && prefs.practiceOffset >= 0) {
+      setPracticeOffset(Math.floor(prefs.practiceOffset));
+    }
+    if (typeof prefs.noRepeats === 'boolean') {
+      setNoRepeats(prefs.noRepeats);
+    }
+    if (typeof prefs.timerMode === 'boolean') {
+      setTimerMode(prefs.timerMode);
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    writeStorageJSON<BorderBuilderPrefs>(PREFS_KEY, {
+      mode,
+      practiceOffset,
+      noRepeats,
+      timerMode,
+    });
+  }, [hydrated, mode, practiceOffset, noRepeats, timerMode]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const saved = readStorageJSON<BorderBuilderSession | null>(sessionKey, null);
+    if (
+      saved
+      && Array.isArray(saved.chain)
+      && saved.chain.length > 0
+      && saved.chain[0] === activeStart
+    ) {
+      const chainIsValid = saved.chain.every((code, index) => {
+        if (index === 0) return code === activeStart;
+        const previous = saved.chain[index - 1];
+        const neighborsForPrev = activeRegion.neighbors[previous] || [];
+        return neighborsForPrev.includes(code);
+      });
+
+      if (chainIsValid) {
+        const nextSeconds = typeof saved.secondsLeft === 'number'
+          ? Math.max(0, Math.min(TIMER_SECONDS, Math.floor(saved.secondsLeft)))
+          : TIMER_SECONDS;
+        setChain(saved.chain);
+        setSecondsLeft(nextSeconds);
+        setStatus(saved.status === 'ended' ? 'ended' : 'playing');
+        return;
+      }
+    }
+
+    setChain([activeStart]);
+    setSecondsLeft(TIMER_SECONDS);
+    setStatus('playing');
+  }, [hydrated, sessionKey, activeStart, activeRegion.neighbors]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    writeStorageJSON<BorderBuilderSession>(sessionKey, {
+      chain,
+      secondsLeft,
+      status,
+    });
+  }, [hydrated, sessionKey, chain, secondsLeft, status]);
 
   useEffect(() => {
     if (!timerMode || status !== 'playing') return;
@@ -65,12 +151,6 @@ export function BorderBuilderGame() {
       setStatus('ended');
     }
   }, [neighbors.length]);
-
-  useEffect(() => {
-    setChain([activeStart]);
-    setSecondsLeft(TIMER_SECONDS);
-    setStatus('playing');
-  }, [activeStart, mode]);
 
   const handlePick = (code: string) => {
     if (status !== 'playing') return;

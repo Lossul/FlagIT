@@ -2,31 +2,91 @@
 
 import { useEffect, useState } from 'react';
 import { getDayIndex, getLocalDateKey } from '@/lib/daily';
+import { readStorageJSON, writeStorageJSON } from '@/lib/browserStorage';
 import { cluePuzzles } from '@/data/clueCountry';
 import { countries } from '@/data/countries';
 import { GuessInput } from './GuessInput';
+
+const PREFS_KEY = 'geo-clue-country-prefs';
+const SESSION_PREFIX = 'geo-clue-country-session';
+
+interface ClueCountryPrefs {
+  mode: 'daily' | 'practice';
+  practiceOffset: number;
+}
+
+interface ClueCountrySession {
+  clueIndex: number;
+  status: 'playing' | 'won';
+  guesses: string[];
+  message: string;
+}
 
 export function ClueCountryGame() {
   const today = new Date();
   const dailyIndex = getDayIndex(today, cluePuzzles.length);
   const [mode, setMode] = useState<'daily' | 'practice'>('daily');
   const [practiceOffset, setPracticeOffset] = useState(1);
+  const [hydrated, setHydrated] = useState(false);
   const puzzleIndex = mode === 'daily'
     ? dailyIndex
     : (dailyIndex + practiceOffset) % cluePuzzles.length;
   const puzzle = cluePuzzles[puzzleIndex];
   const dateLabel = getLocalDateKey(today);
+  const sessionKey = `${SESSION_PREFIX}-${dateLabel}-${mode}-${puzzle.id}`;
   const [clueIndex, setClueIndex] = useState(1);
   const [status, setStatus] = useState<'playing' | 'won'>('playing');
   const [guesses, setGuesses] = useState<string[]>([]);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
+    const prefs = readStorageJSON<Partial<ClueCountryPrefs>>(PREFS_KEY, {});
+    if (prefs.mode === 'daily' || prefs.mode === 'practice') {
+      setMode(prefs.mode);
+    }
+    if (typeof prefs.practiceOffset === 'number' && Number.isFinite(prefs.practiceOffset) && prefs.practiceOffset >= 0) {
+      setPracticeOffset(Math.floor(prefs.practiceOffset));
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    writeStorageJSON<ClueCountryPrefs>(PREFS_KEY, {
+      mode,
+      practiceOffset,
+    });
+  }, [hydrated, mode, practiceOffset]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const saved = readStorageJSON<ClueCountrySession | null>(sessionKey, null);
+    if (saved) {
+      const nextClueIndex = typeof saved.clueIndex === 'number'
+        ? Math.max(1, Math.min(puzzle.clues.length, Math.floor(saved.clueIndex)))
+        : 1;
+      setClueIndex(nextClueIndex);
+      setStatus(saved.status === 'won' ? 'won' : 'playing');
+      setGuesses(Array.isArray(saved.guesses) ? saved.guesses : []);
+      setMessage(typeof saved.message === 'string' ? saved.message : '');
+      return;
+    }
+
     setClueIndex(1);
     setStatus('playing');
     setGuesses([]);
     setMessage('');
-  }, [puzzleIndex, mode]);
+  }, [hydrated, sessionKey, puzzle.clues.length]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    writeStorageJSON<ClueCountrySession>(sessionKey, {
+      clueIndex,
+      status,
+      guesses,
+      message,
+    });
+  }, [hydrated, sessionKey, clueIndex, status, guesses, message]);
 
   const answer = puzzle.answer;
   const country = countries.find((c) => c.code === answer);
